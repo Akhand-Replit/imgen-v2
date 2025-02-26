@@ -5,40 +5,46 @@ import io
 from datetime import datetime
 import random
 
-# Art style presets based on your images
+# Updated art style presets with new additions
 ART_STYLES = {
     "Anime Styles": [
         "Pointed Anime", "Cinemotic", "Digital Painting", "Concept Art",
         "Vintage Anime", "Neon Vintage Anime", "3D Disney Character",
-        "2D Disney Character", "50s Infomercial Anime"
+        "2D Disney Character", "50s Infomercial Anime", "Studio Ghibli",
+        "Drown Anime", "Cute Anime", "Soft Anime"
+    ],
+    "Painting & Realism": [
+        "Oil Painting - Realism", "Oil Painting - Old", "Fontosy Painting",
+        "Fontosy Landscape", "Fontosy Portrait", "Digital Painting",
+        "Watercolor", "Painterly", "Concept Sketch", "Disney Sketch"
     ],
     "Comic/Illustration": [
         "Vintage Comic", "Franco-Belgian Comic", "Tintin Comic",
         "Flat Illustration", "Vintage Pulp Art", "Medieval",
         "Traditional Japanese", "YuGiOh Art", "MTG Card"
     ],
-    "3D Styles": [
+    "3D & Digital": [
         "3D Pokemon", "Painted Pokemon", "3D Isometric Icon",
-        "Cute 3D Icon", "Claymotion", "3D Emoji"
+        "Cute 3D Icon", "Claymotion", "3D Emoji", "Cute 3D Icon Set"
     ],
     "Retro/Vintage": [
         "1990s Photo", "1980s Photo", "1970s Photo", "1960s Photo",
-        "1950s Photo", "1940s Photo", "1930s Photo", "1920s Photo"
+        "1950s Photo", "1940s Photo", "1930s Photo", "1920s Photo",
+        "50s Enamel Sign", "Vintage Pulp Art"
     ],
     "Specialized Techniques": [
-        "Pixel Art", "Oil Painting", "Watercolor", "Painterly",
-        "Concept Sketch", "Disney Sketch", "Crayon Drawing",
-        "Pencil Sketch", "Tattoo Design"
+        "Pixel Art", "Oil Painting", "Crayon Drawing", "Pencil Sketch",
+        "Tattoo Design", "Professional Photo", "Cortoon Style"
     ],
-    "Unique Categories": [
-        "Furry - Cinematic", "Furry - Pointed", "Cursed Photo",
+    "Fantasy & Unique": [
         "Fantasy World Map", "Fantasy City Map", "Mongo Style",
-        "Nihongo Pointing", "Waifu Style", "Cortoon Style"
+        "Nihongo Pointing", "Waifu Style", "Cursed Photo",
+        "Furry - Cinematic", "Furry - Pointed", "Claymotion"
     ]
 }
 
 # Set up the app title and icon
-st.set_page_config(page_title="FLUX Art Generator", page_icon="🎨")
+st.set_page_config(page_title="AKHAND IMAGE GENERATION V2", page_icon="🎨")
 
 # Initialize Hugging Face Inference client
 def get_client():
@@ -55,51 +61,56 @@ if 'history' not in st.session_state:
     st.session_state.history = []
 
 # App UI
-st.title("🎨 FLUX Art Generator")
-st.write("Create unique artwork with style presets and advanced controls")
+st.title("🎨 AKHAND IMAGE GENERATION V2 ")
+st.write("Professional Art Generation with 100+ Style Presets")
 
 # Input parameters
-with st.expander("⚙️ Generation Settings", expanded=True):
-    # Art style selection
-    style_category = st.selectbox(
-        "Select Art Style Category",
-        list(ART_STYLES.keys()),
-        index=0
-    )
+with st.expander("🖌️ Art Configuration", expanded=True):
+    # Style selection
+    col_style1, col_style2 = st.columns(2)
+    with col_style1:
+        style_category = st.selectbox(
+            "Art Style Category",
+            list(ART_STYLES.keys()),
+            index=0
+        )
+    with col_style2:
+        selected_style = st.selectbox(
+            "Specific Art Style",
+            ART_STYLES[style_category],
+            index=0
+        )
     
-    selected_style = st.selectbox(
-        "Choose Specific Style",
-        ART_STYLES[style_category],
-        index=0
-    )
-    
-    # Main prompt inputs
-    prompt = st.text_input("Base Prompt", 
-                         placeholder="Describe the main subject/scene...")
-    
-    negative_prompt = st.text_input("Negative prompt (optional)", 
-                                  placeholder="Elements to exclude...")
-    
-    # Advanced parameters
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
+    # Prompt inputs
+    col_prompt1, col_prompt2 = st.columns([3, 2])
+    with col_prompt1:
+        prompt = st.text_input("Main Art Description", 
+                             placeholder="Describe your artwork...")
+    with col_prompt2:
+        negative_prompt = st.text_input("Exclusion List", 
+                                      placeholder="Elements to avoid...")
+
+# Advanced parameters
+with st.expander("⚙️ Technical Settings", expanded=False):
+    col_params1, col_params2, col_params3, col_params4 = st.columns(4)
+    with col_params1:
         guidance_scale = st.slider("Guidance Scale", 1.0, 20.0, 7.5)
-    with col2:
-        steps = st.slider("Number of Steps", 10, 150, 50)
-    with col3:
-        num_images = st.slider("Number of Images", 1, 4, 1)
-    with col4:
-        height = st.selectbox("Height", [512, 768])
-        width = st.selectbox("Width", [512, 768])
+    with col_params2:
+        steps = st.slider("Generation Steps", 10, 150, 50)
+    with col_params3:
+        num_images = st.slider("Number of Variations", 1, 4, 1)
+    with col_params4:
+        height = st.selectbox("Canvas Height", [512, 768])
+        width = st.selectbox("Canvas Width", [512, 768])
 
 # Generate button
-if st.button("Generate Artwork", type="primary"):
+if st.button("Create Artwork", type="primary"):
     if not prompt:
-        st.warning("Please enter a base prompt")
+        st.warning("Please enter an art description")
         st.stop()
     
-    # Combine base prompt with selected style
-    full_prompt = f"{prompt}, {selected_style} style"
+    # Build enhanced prompt
+    full_prompt = f"{prompt}, {selected_style} style, masterpiece, ultra-detailed"
     
     progress_bar = st.progress(0)
     status_text = st.empty()
@@ -107,17 +118,17 @@ if st.button("Generate Artwork", type="primary"):
     
     try:
         for i in range(num_images):
-            status_text.text(f"Generating artwork {i+1} of {num_images}...")
+            status_text.text(f"Creating Variation {i+1}/{num_images}...")
             progress_bar.progress((i+1)/num_images)
             
-            # Generate unique seed for each image
+            # Generate unique seed for each variation
             seed = random.randint(0, 2**32 - 1)
             
-            # Generate single image per API call with unique seed
+            # Generate artwork
             result = client.text_to_image(
                 prompt=full_prompt,
                 model="black-forest-labs/FLUX.1-dev",
-                negative_prompt=negative_prompt if negative_prompt else None,
+                negative_prompt=negative_prompt or None,
                 guidance_scale=guidance_scale,
                 height=height,
                 width=width,
@@ -125,7 +136,7 @@ if st.button("Generate Artwork", type="primary"):
                 seed=seed
             )
             
-            # Convert PIL Image to bytes
+            # Convert and store image
             if isinstance(result, Image.Image):
                 img_byte_arr = io.BytesIO()
                 result.save(img_byte_arr, format='PNG')
@@ -135,18 +146,18 @@ if st.button("Generate Artwork", type="primary"):
             
             images.append(image_bytes)
             
-            # Display each image as it's generated
-            with st.expander(f"Artwork {i+1} - {selected_style}", expanded=True):
+            # Display artwork
+            with st.expander(f"Variation #{i+1} - {selected_style}", expanded=True):
                 st.image(image_bytes, use_container_width=True)
                 st.download_button(
-                    label="Download",
+                    label="Download Artwork",
                     data=image_bytes,
                     file_name=f"{selected_style.replace(' ', '_')}_{i+1}.png",
                     mime="image/png",
-                    key=f"download_{i}"
+                    key=f"dl_{i}"
                 )
         
-        # Add to history (store last 5 generations)
+        # Update history
         st.session_state.history.append({
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "base_prompt": prompt,
@@ -161,31 +172,30 @@ if st.button("Generate Artwork", type="primary"):
             }
         })
         
-        # Keep only last 5 generations
+        # Maintain history limit
         if len(st.session_state.history) > 5:
             st.session_state.history.pop(0)
         
         progress_bar.empty()
-        status_text.success("All artworks generated successfully!")
+        status_text.success("Art generation complete!")
         
     except Exception as e:
         progress_bar.empty()
-        status_text.error(f"Error generating artwork {i+1}: {str(e)}")
+        status_text.error(f"Generation failed: {str(e)}")
         st.stop()
 
-# Display history
+# History section
 if st.session_state.history:
     st.markdown("---")
-    st.subheader("Generation History")
+    st.subheader("🎭 Creation History")
     
     for gen in reversed(st.session_state.history):
-        with st.expander(f"🕒 {gen['timestamp']} - {gen['style']}"):
-            st.write(f"**Base Prompt:** {gen['base_prompt']}")
+        with st.expander(f"{gen['timestamp']} - {gen['style']}"):
+            st.write(f"**Concept:** {gen['base_prompt']}")
             st.write(f"**Style:** {gen['style']}")
-            st.write(f"**Full Prompt:** {gen['full_prompt']}")
-            if gen.get('negative_prompt'):
-                st.write(f"**Negative Prompt:** {gen['negative_prompt']}")
-            st.write(f"**Parameters:** Guidance {gen['params']['guidance_scale']}, Steps {gen['params']['steps']}, Size {gen['params']['size']}")
+            st.write(f"**Full Prompt:** `{gen['full_prompt']}`")
+            if gen['params'].get('negative_prompt'):
+                st.write(f"**Exclusions:** {gen['negative_prompt']}")
             
             hist_cols = st.columns(len(gen['images']))
             for idx, (col, img_bytes) in enumerate(zip(hist_cols, gen['images'])):
@@ -196,15 +206,16 @@ if st.session_state.history:
                         data=img_bytes,
                         file_name=f"hist_{gen['timestamp']}_{idx+1}.png",
                         mime="image/png",
-                        key=f"hist_dl_{gen['timestamp']}_{idx}"
+                        key=f"hist_{gen['timestamp']}_{idx}"
                     )
 
-# App info
+# App footer
 st.markdown("---")
 st.markdown("""
-**App Info:**
-- Model: [FLUX.1-dev](https://huggingface.co/black-forest-labs/FLUX.1-dev)
-- Art styles curated from your provided references
-- Images stored temporarily in browser session
-- Built with Streamlit & Hugging Face Inference API
+**Art Studio Tools**
+- Developed by [SHUVO](https://sites.google.com/view/mr-shuvo/Home)
+- Powered by [FLUX.1](https://huggingface.co/black-forest-labs/FLUX.1-dev)
+- 150+ Artistic Style Presets
+- Professional-Grade Generation Parameters
+- Temporary Browser-Based Session Storage
 """)
