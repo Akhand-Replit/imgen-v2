@@ -1,221 +1,121 @@
 import streamlit as st
 from huggingface_hub import InferenceClient
-from PIL import Image
-import io
 from datetime import datetime
-import random
+import re
 
-# Updated art style presets with new additions
-ART_STYLES = {
-    "Anime Styles": [
-        "Pointed Anime", "Cinemotic", "Digital Painting", "Concept Art",
-        "Vintage Anime", "Neon Vintage Anime", "3D Disney Character",
-        "2D Disney Character", "50s Infomercial Anime", "Studio Ghibli",
-        "Drown Anime", "Cute Anime", "Soft Anime"
-    ],
-    "Painting & Realism": [
-        "Oil Painting - Realism", "Oil Painting - Old", "Fontosy Painting",
-        "Fontosy Landscape", "Fontosy Portrait", "Digital Painting",
-        "Watercolor", "Painterly", "Concept Sketch", "Disney Sketch"
-    ],
-    "Comic/Illustration": [
-        "Vintage Comic", "Franco-Belgian Comic", "Tintin Comic",
-        "Flat Illustration", "Vintage Pulp Art", "Medieval",
-        "Traditional Japanese", "YuGiOh Art", "MTG Card"
-    ],
-    "3D & Digital": [
-        "3D Pokemon", "Painted Pokemon", "3D Isometric Icon",
-        "Cute 3D Icon", "Claymotion", "3D Emoji", "Cute 3D Icon Set"
-    ],
-    "Retro/Vintage": [
-        "1990s Photo", "1980s Photo", "1970s Photo", "1960s Photo",
-        "1950s Photo", "1940s Photo", "1930s Photo", "1920s Photo",
-        "50s Enamel Sign", "Vintage Pulp Art"
-    ],
-    "Specialized Techniques": [
-        "Pixel Art", "Oil Painting", "Crayon Drawing", "Pencil Sketch",
-        "Tattoo Design", "Professional Photo", "Cortoon Style"
-    ],
-    "Fantasy & Unique": [
-        "Fantasy World Map", "Fantasy City Map", "Mongo Style",
-        "Nihongo Pointing", "Waifu Style", "Cursed Photo",
-        "Furry - Cinematic", "Furry - Pointed", "Claymotion"
-    ]
-}
+# Set up page configuration
+st.set_page_config(page_title="AI Chatbot", page_icon="🤖")
 
-# Set up the app title and icon
-st.set_page_config(page_title="AKHAND IMAGE GENERATION V2", page_icon="🎨")
+# Initialize Hugging Face client
+if "HF_TOKEN" not in st.secrets:
+    st.error("Hugging Face API token not found in Streamlit secrets.")
+    st.stop()
 
-# Initialize Hugging Face Inference client
-def get_client():
-    api_key = st.secrets.get("HUGGINGFACE_TOKEN")
-    if not api_key:
-        st.error("API token not found. Check secrets configuration.")
-        st.stop()
-    return InferenceClient(token=api_key)
+client = InferenceClient(token=st.secrets["HF_TOKEN"])
 
-client = get_client()
+# Initialize session state
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-# Initialize session state for history
-if 'history' not in st.session_state:
-    st.session_state.history = []
-
-# App UI
-st.title("🎨 AKHAND IMAGE GENERATION V2 ")
-st.write("Professional Art Generation with 100+ Style Presets")
-
-# Input parameters
-with st.expander("🖌️ Art Configuration", expanded=True):
-    # Style selection
-    col_style1, col_style2 = st.columns(2)
-    with col_style1:
-        style_category = st.selectbox(
-            "Art Style Category",
-            list(ART_STYLES.keys()),
-            index=0
-        )
-    with col_style2:
-        selected_style = st.selectbox(
-            "Specific Art Style",
-            ART_STYLES[style_category],
-            index=0
-        )
+# Define helper functions
+def parse_response(response):
+    """Parse the model response into structured sections"""
+    sections = {
+        "Thinking Role": None,
+        "Problem Definition": None,
+        "Task Execution": None,
+        "Final Answer": None
+    }
     
-    # Prompt inputs
-    col_prompt1, col_prompt2 = st.columns([3, 2])
-    with col_prompt1:
-        prompt = st.text_input("Main Art Description", 
-                             placeholder="Describe your artwork...")
-    with col_prompt2:
-        negative_prompt = st.text_input("Exclusion List", 
-                                      placeholder="Elements to avoid...")
+    # Use regex to extract each section
+    for section in sections:
+        match = re.search(fr"{section}:\s*(.*?)(?=\n\w+:|$)", response, re.DOTALL)
+        if match:
+            sections[section] = match.group(1).strip()
+    
+    return sections
 
-# Advanced parameters
-with st.expander("⚙️ Technical Settings", expanded=False):
-    col_params1, col_params2, col_params3, col_params4 = st.columns(4)
-    with col_params1:
-        guidance_scale = st.slider("Guidance Scale", 1.0, 20.0, 7.5)
-    with col_params2:
-        steps = st.slider("Generation Steps", 10, 150, 50)
-    with col_params3:
-        num_images = st.slider("Number of Variations", 1, 4, 1)
-    with col_params4:
-        height = st.selectbox("Canvas Height", [512, 768])
-        width = st.selectbox("Canvas Width", [512, 768])
+def generate_transcript():
+    """Generate chat transcript text"""
+    transcript = []
+    for msg in st.session_state.messages:
+        if msg["role"] == "user":
+            transcript.append(f"User: {msg['content']}")
+        elif msg["role"] == "assistant":
+            transcript.append(f"Assistant:\n{msg['content']}")
+    return "\n\n".join(transcript)
 
-# Generate button
-if st.button("Create Artwork", type="primary"):
-    if not prompt:
-        st.warning("Please enter an art description")
-        st.stop()
+# Display chat messages
+for message in st.session_state.messages:
+    if message["role"] == "user":
+        with st.chat_message("user"):
+            st.markdown(message["content"])
+    elif message["role"] == "assistant":
+        with st.chat_message("assistant"):
+            sections = parse_response(message["content"])
+            if sections["Thinking Role"]:
+                st.markdown(f"🧠 Thinking Role:** {sections['Thinking Role']}")
+            if sections["Problem Definition"]:
+                st.markdown(f"🔍 Problem Definition:** {sections['Problem Definition']}")
+            if sections["Task Execution"]:
+                st.markdown(f"⚙ Task Execution:** {sections['Task Execution']}")
+            if sections["Final Answer"]:
+                st.markdown(f"📝 Final Answer:** {sections['Final Answer']}")
+
+# Chat input form
+with st.form("chat_input", clear_on_submit=True):
+    model_name = st.text_input("Model Name", value="DeepSeek-R1")
+    user_input = st.text_area("Your Message", height=100)
+    submitted = st.form_submit_button("Send")
+
+if submitted and user_input.strip():
+    # Add user message to history
+    st.session_state.messages.append({"role": "user", "content": user_input})
     
-    # Build enhanced prompt
-    full_prompt = f"{prompt}, {selected_style} style, masterpiece, ultra-detailed"
+    # Generate prompt with conversation history
+    prompt = f"""You are a helpful assistant. Always format responses with:
+- Thinking Role: [Your assumed role]
+- Problem Definition: [Clear problem statement]
+- Task Execution: [Step-by-step processing]
+- Final Answer: [Concise solution]
+
+Conversation History:
+"""
+    for msg in st.session_state.messages[-4:]:  # Keep recent history
+        if msg["role"] == "user":
+            prompt += f"\nUser: {msg['content']}"
+        elif msg["role"] == "assistant":
+            prompt += f"\nAssistant: {msg['content']}"
     
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    images = []
+    prompt += f"\n\nUser: {user_input}\nAssistant:"
     
+    # Generate response
     try:
-        for i in range(num_images):
-            status_text.text(f"Creating Variation {i+1}/{num_images}...")
-            progress_bar.progress((i+1)/num_images)
-            
-            # Generate unique seed for each variation
-            seed = random.randint(0, 2**32 - 1)
-            
-            # Generate artwork
-            result = client.text_to_image(
-                prompt=full_prompt,
-                model="black-forest-labs/FLUX.1-dev",
-                negative_prompt=negative_prompt or None,
-                guidance_scale=guidance_scale,
-                height=height,
-                width=width,
-                num_inference_steps=steps,
-                seed=seed
-            )
-            
-            # Convert and store image
-            if isinstance(result, Image.Image):
-                img_byte_arr = io.BytesIO()
-                result.save(img_byte_arr, format='PNG')
-                image_bytes = img_byte_arr.getvalue()
-            else:
-                image_bytes = result
-            
-            images.append(image_bytes)
-            
-            # Display artwork
-            with st.expander(f"Variation #{i+1} - {selected_style}", expanded=True):
-                st.image(image_bytes, use_container_width=True)
-                st.download_button(
-                    label="Download Artwork",
-                    data=image_bytes,
-                    file_name=f"{selected_style.replace(' ', '_')}_{i+1}.png",
-                    mime="image/png",
-                    key=f"dl_{i}"
-                )
-        
-        # Update history
-        st.session_state.history.append({
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "base_prompt": prompt,
-            "style": selected_style,
-            "full_prompt": full_prompt,
-            "images": images,
-            "params": {
-                "guidance_scale": guidance_scale,
-                "steps": steps,
-                "size": f"{width}x{height}",
-                "seeds": [seed]
-            }
-        })
-        
-        # Maintain history limit
-        if len(st.session_state.history) > 5:
-            st.session_state.history.pop(0)
-        
-        progress_bar.empty()
-        status_text.success("Art generation complete!")
-        
+        response = client.text_generation(
+            model=model_name,
+            prompt=prompt,
+            max_new_tokens=500,
+            temperature=0.7,
+            do_sample=True
+        )
     except Exception as e:
-        progress_bar.empty()
-        status_text.error(f"Generation failed: {str(e)}")
+        st.error(f"API Error: {str(e)}")
         st.stop()
-
-# History section
-if st.session_state.history:
-    st.markdown("---")
-    st.subheader("🎭 Creation History")
     
-    for gen in reversed(st.session_state.history):
-        with st.expander(f"{gen['timestamp']} - {gen['style']}"):
-            st.write(f"**Concept:** {gen['base_prompt']}")
-            st.write(f"**Style:** {gen['style']}")
-            st.write(f"**Full Prompt:** `{gen['full_prompt']}`")
-            if gen['params'].get('negative_prompt'):
-                st.write(f"**Exclusions:** {gen['negative_prompt']}")
-            
-            hist_cols = st.columns(len(gen['images']))
-            for idx, (col, img_bytes) in enumerate(zip(hist_cols, gen['images'])):
-                with col:
-                    st.image(img_bytes, use_container_width=True)
-                    st.download_button(
-                        label="Download",
-                        data=img_bytes,
-                        file_name=f"hist_{gen['timestamp']}_{idx+1}.png",
-                        mime="image/png",
-                        key=f"hist_{gen['timestamp']}_{idx}"
-                    )
+    # Add assistant response to history
+    st.session_state.messages.append({"role": "assistant", "content": response.strip()})
+    st.rerun()
 
-# App footer
-st.markdown("---")
-st.markdown("""
-**Art Studio Tools**
-- Developed by [SHUVO](https://sites.google.com/view/mr-shuvo/Home)
-- Powered by [FLUX.1](https://huggingface.co/black-forest-labs/FLUX.1-dev)
-- 150+ Artistic Style Presets
-- Professional-Grade Generation Parameters
-- Temporary Browser-Based Session Storage
-""")
+# Download transcript
+if st.session_state.messages:
+    st.divider()
+    with st.expander("📥 Download Chat Transcript"):
+        if st.checkbox("Generate transcript (approved)"):
+            transcript = generate_transcript()
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            st.download_button(
+                label="Download Transcript",
+                data=transcript,
+                file_name=f"chat_transcript_{timestamp}.txt",
+                mime="text/plain"
+            )
